@@ -1,103 +1,142 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+import { Calendar } from "@/components/calendar";
+import { TodoDetail } from "@/components/todoDetail";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  getTasksByMonth,
+  addTask,
+  toggleTask,
+  deleteTask,
+  editTask,
+} from "@/actions/tasks";
+export interface Todo {
+  id: string;
+  title: string;
+  done: boolean;
+  date: string;
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const qc = useQueryClient();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+  // Derive YYYY‑MM string
+  const monthKey = `${currentDate.getFullYear()}-${String(
+    currentDate.getMonth() + 1
+  ).padStart(2, "0")}`;
+
+  // 1) Fetch for current month
+  const { data: monthTasks = [] } = useQuery({
+    queryKey: ["todos", monthKey],
+    queryFn: () => getTasksByMonth(monthKey),
+  });
+
+  // 2) Prefetch next/prev month on month change
+  useEffect(() => {
+    const next = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() + 1,
+      1
+    );
+    const prev = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth() - 1,
+      1
+    );
+    [next, prev].forEach((d) => {
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}`;
+      qc.prefetchQuery({
+        queryKey: ["todos", key],
+        queryFn: () => getTasksByMonth(key),
+      });
+    });
+  }, [currentDate, qc]);
+
+  // 3) Mutations
+  const addMut = useMutation({
+    mutationFn: ({ date, title }: { date: string; title: string }) =>
+      addTask(date, title),
+
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos"] }),
+  });
+  const toggleMut = useMutation({
+    mutationFn: ({ id, done }: { id: string; done: boolean }) =>
+      toggleTask(id, done),
+
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos"] }),
+  });
+  const delMut = useMutation({
+    mutationFn: (id: string) => deleteTask(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos"] }),
+  });
+  const editMut = useMutation<
+    void,
+    Error,
+    {
+      id: string;
+      updates: { title?: string; date?: string };
+    }
+  >({
+    mutationFn: ({ id, updates }) => editTask(id, updates),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos"] }),
+  });
+
+  // Helpers for calendar
+  const todosByDate = monthTasks.reduce<Record<string, any[]>>(
+    (acc: any, t: any) => {
+      acc[t.date] = acc[t.date] ?? [];
+      acc[t.date].push(t);
+      return acc;
+    },
+    {}
+  );
+
+  const hasActive = (date: string) =>
+    (todosByDate[date] ?? []).some((t: any) => !t.done);
+  const hasCompleted = (date: string) => {
+    const list = todosByDate[date] ?? [];
+    return list.length > 0 && list.every((t: any) => t.done);
+  };
+
+  if (selectedDate) {
+    const list = todosByDate[selectedDate] ?? [];
+    return (
+      <TodoDetail
+        date={selectedDate}
+        todos={list}
+        onBack={() => setSelectedDate(null)}
+        onAddTodo={(text) => addMut.mutate({ date: selectedDate, title: text })}
+        onUpdateTodo={(id, upd) => {
+          if (upd.done !== undefined) toggleMut.mutate({ id, done: upd.done });
+          else
+            editMut.mutate({
+              id,
+              updates: { title: upd.title, date: upd.date },
+            });
+        }}
+        onDeleteTodo={(id) => delMut.mutate(id)}
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-4xl mx-auto">
+        {/* … header … */}
+        <Calendar
+          currentDate={currentDate}
+          onDateChange={setCurrentDate}
+          onDateClick={setSelectedDate}
+          hasActiveTodos={hasActive}
+          hasCompletedTodos={hasCompleted}
+        />
+      </div>
     </div>
   );
 }
