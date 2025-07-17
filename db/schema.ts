@@ -9,4 +9,5 @@ export const tasks = pgTable("tasks", {
   title: text("title").notNull(),
   date: text("date").notNull(), // store YYYY‑MM‑DD
   done: boolean("done").default(false).notNull(),
+  order: integer("order").notNull(),
 });

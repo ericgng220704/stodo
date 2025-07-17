@@ -22,6 +22,13 @@
       "when": 1752538378125,
       "tag": "0002_noisy_chamber",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1752764274266,
+      "tag": "0003_moaning_brood",
+      "breakpoints": true
     }
   ]
 }

@@ -10,12 +10,14 @@ import {
   toggleTask,
   deleteTask,
   editTask,
+  updateTask,
 } from "@/actions/tasks";
 export interface Todo {
   id: string;
   title: string;
   done: boolean;
   date: string;
+  order: number;
 }
 
 export default function Home() {
@@ -60,20 +62,27 @@ export default function Home() {
 
   // 3) Mutations
   const addMut = useMutation({
-    mutationFn: ({ date, title }: { date: string; title: string }) =>
-      addTask(date, title),
+    mutationFn: ({
+      date,
+      title,
+      order,
+    }: {
+      date: string;
+      title: string;
+      order: number;
+    }) => addTask(date, title, order),
 
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos", monthKey] }),
   });
   const toggleMut = useMutation({
     mutationFn: ({ id, done }: { id: string; done: boolean }) =>
       toggleTask(id, done),
 
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos", monthKey] }),
   });
   const delMut = useMutation({
     mutationFn: (id: string) => deleteTask(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos", monthKey] }),
   });
   const editMut = useMutation<
     void,
@@ -84,7 +93,34 @@ export default function Home() {
     }
   >({
     mutationFn: ({ id, updates }) => editTask(id, updates),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["todos", monthKey] }),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Todo> }) =>
+      updateTask(id, updates),
+    // 1. cancel any outgoing fetches
+    onMutate: async ({ id, updates }) => {
+      await qc.cancelQueries({ queryKey: ["todos", monthKey] });
+      // 2. snapshot previous
+      const previous = qc.getQueryData<Todo[]>(["todos", monthKey]);
+      // 3. optimistically update the cache
+      qc.setQueryData<Todo[]>(["todos", monthKey], (old) =>
+        old ? old.map((t) => (t.id === id ? { ...t, ...updates } : t)) : []
+      );
+      // 4. return context for rollback
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      // rollback
+      if (context?.previous) {
+        qc.setQueryData(["todos", monthKey], context.previous);
+      }
+    },
+    onSettled: () => {
+      // finally re‑sync from server if needed
+      qc.invalidateQueries({ queryKey: ["todos", monthKey] });
+    },
   });
 
   // Helpers for calendar
@@ -111,14 +147,11 @@ export default function Home() {
         date={selectedDate}
         todos={list}
         onBack={() => setSelectedDate(null)}
-        onAddTodo={(text) => addMut.mutate({ date: selectedDate, title: text })}
+        onAddTodo={(text: string, order: number) =>
+          addMut.mutate({ date: selectedDate, title: text, order })
+        }
         onUpdateTodo={(id, upd) => {
-          if (upd.done !== undefined) toggleMut.mutate({ id, done: upd.done });
-          else
-            editMut.mutate({
-              id,
-              updates: { title: upd.title, date: upd.date },
-            });
+          updateMut.mutate({ id, updates: upd });
         }}
         onDeleteTodo={(id) => delMut.mutate(id)}
       />

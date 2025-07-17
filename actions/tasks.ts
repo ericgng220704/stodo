@@ -10,13 +10,19 @@ export async function getTasksByMonth(month: string) {
   return db
     .select()
     .from(tasks)
-    .where(ilike(tasks.date, `${month}-%`));
+    .where(ilike(tasks.date, `${month}-%`))
+    .orderBy(tasks.order);
 }
 
 // Add a new task
-export async function addTask(date: string, title: string) {
-  type NewTask = typeof tasks.$inferInsert;
-  const newTask: NewTask = { date, title, done: false };
+export async function addTask(date: string, title: string, order: number) {
+  interface NewTask {
+    title: string;
+    date: string;
+    done: boolean;
+    order: number;
+  }
+  const newTask: NewTask = { date, title, done: false, order };
   await db.insert(tasks).values(newTask);
   revalidatePath("/"); // so SSR will refresh if you use it
 }
@@ -49,5 +55,18 @@ export async function editTask(
     return;
   }
   await db.update(tasks).set(update).where(eq(tasks.id, id));
+  revalidatePath("/");
+}
+
+export async function updateTask(
+  id: string,
+  updates: Partial<{
+    title: string;
+    date: string;
+    done: boolean;
+    order: number;
+  }>
+) {
+  await db.update(tasks).set(updates).where(eq(tasks.id, id));
   revalidatePath("/");
 }
