@@ -12,6 +12,7 @@ import {
   editTask,
   updateTask,
 } from "@/actions/tasks";
+import { useUser } from "@clerk/nextjs";
 export interface Todo {
   id: string;
   title: string;
@@ -21,8 +22,10 @@ export interface Todo {
 }
 
 export default function Home() {
+  const { isSignedIn, user, isLoaded } = useUser();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
+
   const qc = useQueryClient();
 
   // Derive YYYY‑MM string
@@ -66,11 +69,13 @@ export default function Home() {
       date,
       title,
       order,
+      userId,
     }: {
       date: string;
       title: string;
       order: number;
-    }) => addTask(date, title, order),
+      userId: string;
+    }) => addTask(date, title, order, userId),
 
     onSuccess: () => qc.invalidateQueries({ queryKey: ["todos", monthKey] }),
   });
@@ -140,6 +145,14 @@ export default function Home() {
     return list.length > 0 && list.every((t: any) => t.done);
   };
 
+  if (!isLoaded) {
+    return <div>Loading...</div>;
+  }
+
+  if (!isSignedIn) {
+    return <div>Sign in to view this page</div>;
+  }
+
   if (selectedDate) {
     const list = todosByDate[selectedDate] ?? [];
     return (
@@ -148,7 +161,12 @@ export default function Home() {
         todos={list}
         onBack={() => setSelectedDate(null)}
         onAddTodo={(text: string, order: number) =>
-          addMut.mutate({ date: selectedDate, title: text, order })
+          addMut.mutate({
+            date: selectedDate,
+            title: text,
+            order,
+            userId: user.id,
+          })
         }
         onUpdateTodo={(id, upd) => {
           updateMut.mutate({ id, updates: upd });

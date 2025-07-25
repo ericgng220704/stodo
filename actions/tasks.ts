@@ -15,14 +15,20 @@ export async function getTasksByMonth(month: string) {
 }
 
 // Add a new task
-export async function addTask(date: string, title: string, order: number) {
+export async function addTask(
+  date: string,
+  title: string,
+  order: number,
+  userId: string
+) {
   interface NewTask {
     title: string;
     date: string;
     done: boolean;
     order: number;
+    userId: string; // Assuming userId is required
   }
-  const newTask: NewTask = { date, title, done: false, order };
+  const newTask: NewTask = { date, title, done: false, order, userId };
   await db.insert(tasks).values(newTask);
   revalidatePath("/"); // so SSR will refresh if you use it
 }
