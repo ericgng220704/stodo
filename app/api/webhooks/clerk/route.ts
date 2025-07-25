@@ -21,16 +21,25 @@ export async function POST(request: Request) {
     try {
       const newUser: User = {
         id: payload.data.id,
-        email: payload.data.email_addresses[0].email_address,
+        email: payload.data.email_addresses[0].email_address || "",
         firstName: payload.data.first_name || "",
         lastName: payload.data.last_name || "",
         avatar: payload.data.image_url || null,
       };
 
       const user = await db.insert(users).values(newUser);
+
+      return new Response(JSON.stringify(user), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      });
     } catch (error) {
       console.error("Error inserting user:", error);
       return new Response("Error inserting user", { status: 500 });
     }
   }
+
+  return new Response("Webhook event not handled", {
+    status: 200,
+  });
 }
